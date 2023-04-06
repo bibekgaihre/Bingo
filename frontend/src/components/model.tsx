@@ -7,13 +7,20 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   buttonText?: string;
+  onJoinRoom?: (value: any) => void;
   type: "username" | "room";
 }
 
-export default function Modal({ visible, onClose, type }: ModalProps) {
+export default function Modal({
+  visible,
+  onClose,
+  type,
+  onJoinRoom,
+}: ModalProps) {
   let [isOpen, setIsOpen] = useState(true);
   let isCancelButtonDisable = false;
   let [value, setValue] = useState("");
+  let [msg, setMsg] = useState("");
   const { setUsername } = useUserContext();
   let title, buttonText;
   if (!visible) return null;
@@ -29,8 +36,18 @@ export default function Modal({ visible, onClose, type }: ModalProps) {
     setUsername(value);
     onClose();
   };
+
+  const handleSubmit = () => {
+    if (value === "") {
+      setMsg("Field must not be empty");
+      return;
+    }
+
+    type == "username" ? handleCreateUser() : handleJoinRoom();
+  };
+
   const handleJoinRoom = () => {
-    console.log("handle joinr oom");
+    if (onJoinRoom) onJoinRoom(value);
   };
   const onClick = () => {
     type == "username" ? handleCreateUser() : handleJoinRoom();
@@ -66,7 +83,7 @@ export default function Modal({ visible, onClose, type }: ModalProps) {
                 <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
                   <Dialog.Title
                     as="h3"
-                    className="text-lg font-medium leading-6 text-gray-900"
+                    className="text-2xl font-medium leading-6 text-gray-900"
                   >
                     {title}
                   </Dialog.Title>
@@ -75,14 +92,16 @@ export default function Modal({ visible, onClose, type }: ModalProps) {
                       type="text"
                       className="block w-full border border-gray-300 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-gray-500 rounded-md py-3 pl-7 pr-20 bg-white text-lg"
                       onChange={(e) => setValue(e.target.value)}
+                      required={true}
                     />
                   </div>
 
+                  <h5>{msg}</h5>
                   <div className="grid grid-cols-2 gap-4 justify-center md:grid-cols-2 mt-4">
                     <button
                       type="button"
                       className="flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 py-3 px-8 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                      onClick={onClick}
+                      onClick={handleSubmit}
                     >
                       {buttonText}
                     </button>

@@ -1,145 +1,209 @@
+import Confetti from "react-confetti";
 import Container from "../layouts/container";
 
-import { socket } from "../socket";
+import { useNavigate, useParams } from "react-router-dom";
 
-import { useParams } from "react-router-dom";
+import useWindowSize from "react-use/lib/useWindowSize";
 
-import { ArrowPathIcon } from "@heroicons/react/24/outline";
+import { useContext, useEffect, useState } from "react";
 
-import { useEffect, useState } from "react";
 import { useUserContext } from "../functions/User";
 
-let phrasesInit = [
-  "(child noises in the background)",
-  "Hello, hello?",
-  "i need to jump in another call",
-  "can everyone go on mute",
-  "could you please get closer to the mic",
-  "(load painful echo / feedback)",
-  "Next slide, please",
-  "can we take this offline?",
-  "is ___ on the call?",
-  "Could you share this slides afterwards?",
-  "can somebody grant presenter rights?",
-  "can you email that to everyone?",
-  "conf call bingo",
-  "i'll have to get back to you",
-  "You will send the minutes?",
-  "sorry, i had problems loging in",
-  "(animal noises in the background)",
-  "sorry, i didn't found the conference id",
-  "i was having connection issues",
-  "who just joined?",
-  "sorry, something ___ with my calendar",
-  "do you see my screen?",
-  "lets wait for ___!",
-  "sorry, i was on mute.",
-  "can you repeat, please?",
-];
+import { SocketContext } from "../socket";
 
-let gameRules = [
-  "A player wins by completing a row, column, or diagonal.",
-  "There's a free slot (always on) in the middle",
-  "You can have multiple bingos",
-];
+import Notify from "../components/notify";
+
+import { phrasesInit } from "../constants/constants";
+
+import { calculateWinningPoints } from "../functions/calculatepoints";
+
+import Sidebar from "../components/sidebar";
+import Board from "../components/board";
+import ButtonGroups from "../components/buttongroups";
+
+interface player {
+  username: string;
+  clientId: string;
+}
+
+interface game {
+  gameId: string;
+  players: player[];
+}
+
+interface notifications {
+  gameId: string;
+  gameData: object;
+  message: string;
+}
 
 export default function Game() {
+  let navigate = useNavigate();
   let { gameId } = useParams();
+  const { width, height } = useWindowSize();
+
+  const socket = useContext(SocketContext);
 
   const { username } = useUserContext();
 
-  let [players, setPlayers] = useState([]);
-  let [phrases, setPhrases] = useState<string[]>(phrasesInit);
-
   let [notifications, setNotifications]: any = useState([]);
 
-  let [isSocketConnected, setIsSocketConnected] = useState(socket.connected);
+  let [phrases, setPhrases] = useState<string[]>(phrasesInit);
+  let [selectedPhrases, setSelectedPhrases] = useState(new Set());
 
-  let [selectedPhrases, setSelectedPhrases] = useState([""]);
+  let [showNotify, setShowNotify] = useState(false);
+  //turns states
+  let [winner, setWinner] = useState(null);
+  let [players, setPlayers] = useState<player[]>([]);
+
+  let [possibleWinning, setPossibleWinning] = useState<any>([]);
+
+  let [points, setPoints] = useState<number>(0);
 
   let [showShuffle, setShowShuffle] = useState(true);
+  //load and session states
   let [loadtime, setLoadtime] = useState(10);
   let [loading, setLoading] = useState(false);
   let [sessionStart, setSessionStart] = useState(false);
+  let [sessionEnd, setSessionEnd] = useState(false);
   const handleShuffle = () => {
     let shuffled = [...phrasesInit].sort(() => Math.random() - 0.5);
 
     setPhrases(shuffled);
   };
   useEffect(() => {
-    console.log(players);
-    console.log(notifications);
-  }, [players]);
-  useEffect(() => {
     handleShuffle();
-
-    socket.on("connect", () => {
-      setIsSocketConnected(true);
-
-      // socket.emit("create_game", {
-      //   clientId: username,
-      //   gameId: gameId,
-      // });
-      socket.on("game_join_response", (data) => {
-        console.log(data);
-        setPlayers(data.joinedClients);
-        setNotifications((preval: any) => [...preval, data.message]);
-      });
-      console.log(gameId);
-      socket.emit("get_games", {
-        gameId: gameId,
-      });
-      console.log("connected to backend server");
-    });
-
-    socket.on("disconnect", () => {
-      setIsSocketConnected(false);
-      console.log("disconnected from backend server");
-    });
-    return () => {
-      socket.off("connect", () => {
-        setIsSocketConnected(true);
-        console.log("connected to backend server");
-      });
-      socket.off("disconnect", () => {
-        setIsSocketConnected(false);
-        console.log("disconnected from backend server");
-      });
-    };
   }, []);
 
   useEffect(() => {
-    if (loading && loadtime > 0) {
-      let interval = setInterval(() => {
-        setLoadtime((prevLoadtime) => prevLoadtime - 1);
-      }, 1000);
-      return () => clearInterval(interval);
-    } else if (loadtime === 0) {
+    if (sessionStart) {
+      setSelectedPhrases((current: any) => new Set(current.add(phrases[12])));
+    }
+  }, [sessionStart]);
+
+  useEffect(() => {
+    if (loadtime !== 0 || loading) {
+      setSessionStart(false);
+    } else {
+      let points = calculateWinningPoints(phrases);
+      setPossibleWinning(points);
       setSessionStart(true);
     }
-  }, [loading, loadtime]);
+  }, [loadtime]);
+  //socket functions
+  useEffect(() => {
+    socket.emit("get_players", {
+      gameId: gameId,
+    });
+
+    socket.on("set_players", (value: game) => {
+      setPlayers(value.players);
+    });
+
+    socket.on("game_highlights", (value: notifications) => {
+      setNotifications((preval: any) => [...preval, value.message]);
+    });
+    socket.on("start_game", (value: any) => {
+      if (value.isGameStarted) {
+        setSessionStart(true);
+        setShowShuffle(false);
+      }
+    });
+    socket.on("countdown", (value: any) => {
+      setLoading(true);
+      setLoadtime(value);
+      setShowShuffle(false);
+      if (value == 0) {
+        setLoading(false);
+      }
+    });
+    socket.on("selected_phrase", (value: any) => {
+      setSelectedPhrases(
+        (current: any) => new Set(current.add(value.selectedPhrase))
+      );
+    });
+    socket.on("get_winner", (value: any) => {
+      setWinner(value.wonBy);
+      setSessionEnd(true);
+      setShowNotify(true);
+    });
+  }, [socket]);
+
+  const checkPoints = () => {
+    if (selectedPhrases) {
+    }
+    let arrSelectedPhrases: any[] = [...selectedPhrases];
+    arrSelectedPhrases;
+    let pointCounter = 0;
+    for (let i = 0; i < possibleWinning.length; i++) {
+      if (
+        possibleWinning[i].every((val: any) => arrSelectedPhrases.includes(val))
+      ) {
+        pointCounter++;
+      }
+    }
+    setPoints(pointCounter);
+  };
+
+  useEffect(() => {
+    checkPoints();
+    if (points >= 5) {
+      socket.emit("win_game", {
+        gameId: gameId,
+        wonBy: username,
+      });
+      socket.emit("end_game", {
+        gameId: gameId,
+      });
+    }
+  }, [selectedPhrases]);
+
+  const handleSelectedPhrase = (phrase: any) => {
+    socket.emit("selected_phrase", {
+      gameId: gameId,
+      selectedBy: username,
+      selectedPhrase: phrase,
+    });
+  };
 
   const handleLoad = () => {
     setShowShuffle(false);
     setLoading(true);
+    setSessionStart(false);
+    socket.emit("start_game", {
+      gameId: gameId,
+      gameStartedBy: username,
+    });
   };
 
   const handleEnd = () => {
     setLoading(false);
-    console.log(loading);
     setSessionStart(false);
-    console.log(loadtime);
     if (loadtime === 0) {
       setSessionStart(false);
     }
-    console.log(sessionStart);
     setShowShuffle(true);
+    socket.emit("exit_game", {
+      username: username,
+      gameId: gameId,
+    });
+    return navigate("/");
   };
 
   return (
     <>
       <Container>
         <div className="flex flex-col md:flex-row ">
+          {points >= 5 ? (
+            <Confetti
+              numberOfPieces={200}
+              width={width}
+              height={height}
+              tweenDuration={5000}
+            />
+          ) : (
+            ""
+          )}
           <div className="flex flex-col justify-center my-4 py-4 md:mr-8 mb-8 md:mb-0">
             <div className="grid justify-center grid-cols-1 md:grid-cols-1">
               <div className="p-1 text-black m-4 flex items-center justify-center">
@@ -152,104 +216,40 @@ export default function Game() {
                 )}
               </div>
             </div>
+
+            <div className="grid justify-center grid-cols-1 md:grid-cols-1">
+              <div className="p-1 text-black m-4 flex items-center justify-center">
+                <h5 className="text-lg">Room ID:{gameId}</h5>
+              </div>
+            </div>
             {/* board ui */}
-            <div
-              className={`grid grid-cols-5 md:grid-cols-25 ${
-                sessionStart ? "" : "pointer-events-none"
-              }`}
-            >
-              {phrases.map((phrase, index) => {
-                return (
-                  <div
-                    className={`box-content h-32 w-32 ${
-                      index === 12 ? "bg-green-400" : "bg-white"
-                    }  hover:bg-gray-300 active:bg-green-400 cursor-pointer shadow-sm border border-black md:box-content`}
-                    key={index}
-                  >
-                    <div className="pt-1 md:text-right">
-                      <span className="mt-2 px-2 text-lg font-bold text-neutral-800 ">
-                        <sup>{index}</sup>
-                      </span>
-                    </div>
-                    <div className="py-2 text-center">
-                      <h5 className="px-2 font-medium leading-tight text-neutral-800 text-sm md:text-sm">
-                        {phrase}
-                      </h5>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            <div className="grid justify-center grid-cols-2 md:grid-cols-2 ">
-              <div className="p-1 m-4">
-                {showShuffle ? (
-                  <button
-                    className="flex w-full items-center justify-center rounded-md border border-transparent bg-green-600 py-3 px-8 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                    onClick={handleLoad}
-                  >
-                    Start
-                  </button>
-                ) : (
-                  <button
-                    className="flex w-full items-center justify-center rounded-md border border-transparent bg-red-600 py-3 px-8 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-                    onClick={handleEnd}
-                  >
-                    Exit
-                  </button>
-                )}
-              </div>
-
-              {showShuffle ? (
-                <div className="p-1 text-white m-4 flex items-center justify-center">
-                  <span className="sr-only">Shuffle</span>
-                  <ArrowPathIcon
-                    className="stroke-green-900 h-10 w-10 hover:stroke-black cursor-pointer"
-                    aria-hidden="true"
-                    onClick={handleShuffle}
-                  />
-                </div>
-              ) : (
-                ""
-              )}
-            </div>
+            <Board
+              sessionStart={sessionStart}
+              phrases={phrases}
+              handleSelectedPhrase={handleSelectedPhrase}
+              selectedPhrases={selectedPhrases}
+            />
+            <ButtonGroups
+              showShuffle={showShuffle}
+              handleLoad={handleLoad}
+              handleEnd={handleEnd}
+              handleShuffle={handleShuffle}
+            />
           </div>
-          <div className="flex flex-col h-auto w-full md:w-auto p-4 text-black md:ml-8">
-            <div className="grid justify-center grid-cols-1 md:grid-cols-1">
-              <div className="p-1 text-black m-4 flex items-center justify-center">
-                <h5 className="text-lg font-bold">Username:{username}</h5>
-              </div>
-            </div>
-
-            <div className="grid justify-center grid-cols-1 md:grid-cols-1">
-              <div className="p-1 text-black m-4 flex items-center justify-center">
-                <h5 className="text-lg font-bold">Game rules</h5>
-              </div>
-            </div>
-            <ul className="text-left">
-              {gameRules.map((value: string, index) => {
-                return <li key={index}> {value}</li>;
-              })}
-            </ul>
-            <div className="grid justify-center grid-cols-1 md:grid-cols-1">
-              <div className="p-1 text-black m-4 flex items-center justify-center">
-                <h5 className="text-lg font-bold">Game Highlights</h5>
-              </div>
-            </div>
-            <div className="text-left ">
-              <h5>game Created ... </h5>
-              {notifications.map((message: any, index: any) => {
-                return <h5 key={index}>{message}</h5>;
-              })}
-
-              <h5>Bibek joined the game</h5>
-              <h5>Dipesh joined the game</h5>
-              <h5>Brij joined the game</h5>
-              <h5>Anushree won the game </h5>
-            </div>
-          </div>
+          <Sidebar
+            username={username}
+            points={points}
+            notifications={notifications}
+          />
         </div>
       </Container>
+      <Notify
+        title={`Game has Ended. ${
+          winner === username ? "you are" : `${winner} is`
+        } the winner. You will be exited out of room`}
+        visible={showNotify}
+      />
     </>
   );
 }

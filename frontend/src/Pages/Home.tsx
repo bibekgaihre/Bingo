@@ -6,8 +6,12 @@ import { useContext, useEffect, useState } from "react";
 import Model from "../components/model";
 import { useUserContext } from "../functions/User";
 import { SocketContext } from "../socket";
+import { useNavigate } from "react-router-dom";
+import Title from "../components/title";
 
 export default function Home() {
+  const navigator = useNavigate();
+
   const { username, setUsername } = useUserContext();
   const socket = useContext(SocketContext);
   const [showModal, setShowModal] = useState(false);
@@ -24,24 +28,46 @@ export default function Home() {
     if (username == "") {
       setShowUserModal(true);
     }
-    console.log(username.toString(), "000");
   }, [username]);
 
   const createRoom = () => {
     if (username !== "") {
-      //this should only envoke when clicked create room
       socket.emit(
         "create_game",
         {
-          clientId: username,
+          clientId: socket.id,
+          username: username,
           gameId: roomId,
         },
         function (data: any) {
-          console.log(data);
           console.log("room created");
         }
       );
     }
+  };
+  const joinRoom = (value: any) => {
+    socket.emit(
+      "get_games",
+      {
+        gameId: value,
+        clientId: socket.id,
+        username: username,
+      },
+      function (response: any) {
+        if (response == 200) {
+          socket.emit("join_game", {
+            gameId: value,
+            clientId: socket.id,
+            username: username,
+          });
+          navigator(`room/${value}`);
+        } else if (response == 403) {
+          alert("Game Already Started");
+        } else {
+          alert("Room Not Found");
+        }
+      }
+    );
   };
 
   const handleOnClose = () => {
@@ -50,6 +76,7 @@ export default function Home() {
   };
   return (
     <>
+      <Title />
       <div className="flex flex-col justify-center my-4 py-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Link to={`room/${roomId}`} onClick={createRoom}>
@@ -86,7 +113,12 @@ export default function Home() {
       </div>
 
       <Model onClose={handleOnClose} visible={showUserModal} type="username" />
-      <Model onClose={handleOnClose} visible={showModal} type="room" />
+      <Model
+        onClose={handleOnClose}
+        visible={showModal}
+        type="room"
+        onJoinRoom={joinRoom}
+      />
     </>
   );
 }
