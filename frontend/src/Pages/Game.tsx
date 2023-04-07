@@ -71,9 +71,10 @@ export default function Game() {
 
     setPhrases(shuffled);
   };
-  // useEffect(() => {
-  //   handleShuffle();
-  // }, []);
+  //for shuffling the phrases at the start of the page
+  useEffect(() => {
+    handleShuffle();
+  }, []);
 
   useEffect(() => {
     if (sessionStart) {
@@ -151,6 +152,7 @@ export default function Game() {
     }
     setPoints(pointCounter);
   };
+
   useEffect(() => {
     if (points > 4) {
       socket.emit("win_game", {
