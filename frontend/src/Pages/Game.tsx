@@ -71,9 +71,9 @@ export default function Game() {
 
     setPhrases(shuffled);
   };
-  useEffect(() => {
-    handleShuffle();
-  }, []);
+  // useEffect(() => {
+  //   handleShuffle();
+  // }, []);
 
   useEffect(() => {
     if (sessionStart) {
@@ -124,14 +124,21 @@ export default function Game() {
     });
     socket.on("get_winner", (value: any) => {
       setWinner(value.wonBy);
+      if (points > 4) {
+        socket.emit("win_game", {
+          gameId: gameId,
+          wonBy: username,
+        });
+        socket.emit("end_game", {
+          gameId: gameId,
+        });
+      }
       setSessionEnd(true);
       setShowNotify(true);
     });
   }, [socket]);
 
   const checkPoints = () => {
-    if (selectedPhrases) {
-    }
     let arrSelectedPhrases: any[] = [...selectedPhrases];
     arrSelectedPhrases;
     let pointCounter = 0;
@@ -144,10 +151,8 @@ export default function Game() {
     }
     setPoints(pointCounter);
   };
-
   useEffect(() => {
-    checkPoints();
-    if (points >= 5) {
+    if (points > 4) {
       socket.emit("win_game", {
         gameId: gameId,
         wonBy: username,
@@ -156,6 +161,10 @@ export default function Game() {
         gameId: gameId,
       });
     }
+  }, [points]);
+
+  useEffect(() => {
+    checkPoints();
   }, [selectedPhrases]);
 
   const handleSelectedPhrase = (phrase: any) => {
