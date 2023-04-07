@@ -38,6 +38,7 @@ interface notifications {
 }
 
 export default function Game() {
+  const cells = Array.from(Array(25).keys());
   let navigate = useNavigate();
   let { gameId } = useParams();
   const { width, height } = useWindowSize();
@@ -227,20 +228,19 @@ export default function Game() {
                 )}
               </div>
             </div>
-
             <div className="grid justify-center grid-cols-1 md:grid-cols-1">
               <div className="p-1 text-black m-4 flex items-center justify-center">
                 <h5 className="text-lg">Room ID:{gameId}</h5>
               </div>
             </div>
             {/* board ui */}
-
             <Board
               sessionStart={sessionStart}
               phrases={phrases}
               handleSelectedPhrase={handleSelectedPhrase}
               selectedPhrases={selectedPhrases}
             />
+
             <ButtonGroups
               showShuffle={showShuffle}
               handleLoad={handleLoad}

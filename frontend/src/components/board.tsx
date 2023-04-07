@@ -15,7 +15,7 @@ export default function Board({
           const isSelected = selectedPhrases.has(phrase);
           return (
             <div
-              className={`box-content h-32 w-32 ${
+              className={`box-content h-20 w-24 md:w-32 md:32 lg:w-32 lg:h-32 ${
                 index === 12 || isSelected
                   ? "bg-green-400 pointer-events-none border-white"
                   : "bg-white"
@@ -24,12 +24,12 @@ export default function Board({
               onClick={() => handleSelectedPhrase(phrase)}
             >
               <div className="pt-1 md:text-right">
-                <span className="mt-2 px-2 text-lg font-bold text-neutral-800 ">
+                <span className="mt-2 px-2 font-bold text-sm md:text-base lg:text-base text-neutral-800 ">
                   <sup>{index}</sup>
                 </span>
               </div>
               <div className="py-2 text-center">
-                <h5 className="px-2 font-medium leading-tight text-neutral-800 text-sm md:text-sm">
+                <h5 className="px-2 font-medium leading-tight text-neutral-800 text-sm md:text-sm lg:text-base">
                   {phrase}
                 </h5>
               </div>
